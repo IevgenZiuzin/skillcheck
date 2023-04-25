@@ -1,0 +1,65 @@
+version: "3"
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: quizapp_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+
+  redis:
+    image: redis
+    hostname: redis
+    ports:
+      - "6379:6379"
+
+  worker:
+    build: .
+    hostname: worker
+    entrypoint: celery
+    command: -A project.celery_app.app worker --loglevel=INFO
+    volumes:
+      - .:/app
+    links:
+      - redis
+    depends_on:
+      - redis
+
+  flower:
+    build: .
+    hostname: flower
+    entrypoint: celery
+    command: -A project.celery_app.app flower
+    volumes:
+      - .:/app
+    links:
+      - redis
+    depends_on:
+      - redis
+    ports:
+      - "5555:5555"
+
+  web:
+    build: .
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DEBUG=True
+      - DB_HOST=db
+      - DB_NAME=quizapp_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+
+volumes:
+  postgres_data:
